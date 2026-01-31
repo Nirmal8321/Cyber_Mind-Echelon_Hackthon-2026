@@ -1,0 +1,9 @@
+# --- Sensitive Data ---
+.env
+.streamlit/secrets.toml
+
+# --- Temporary/Large Files ---
+temp_frames/
+temp_video.mp4
+venv/
+__pycache__/
