@@ -1,0 +1,8 @@
+streamlit
+google-generativeai
+transformers
+torch
+pillow
+opencv-python
+python-dotenv
+requests
