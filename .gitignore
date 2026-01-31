@@ -1,9 +1,33 @@
-# --- Sensitive Data ---
+# --- Sensitive Data & Secrets ---
 .env
 .streamlit/secrets.toml
+secrets.json
+*.api_key
 
-# --- Temporary/Large Files ---
-temp_frames/
+# --- Project-Specific Temporary Data ---
+data/temp_frames/
 temp_video.mp4
-venv/
+data/logs/forensic_audit.jsonl
+*.jpg
+*.png
+*.mp4
+
+# --- Python Environment & Bytecode ---
 __pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.venv/
+.env/
+
+# --- IDE & OS Specific Files ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Distribution & Build ---
+dist/
+build/
+*.egg-info/

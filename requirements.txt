@@ -2,7 +2,9 @@ streamlit
 google-generativeai
 transformers
 torch
+torchvision
 pillow
-opencv-python
-python-dotenv
+fpdf
+openai
 requests
+opencv-python
