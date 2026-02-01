@@ -1,68 +1,71 @@
 import google.generativeai as genai
 import streamlit as st
-import re
-
-# Specialist Agent Imports
 from agents.consistency_agent import get_clip_score
 from agents.ocr_agent import get_ocr_analysis
 from agents.logic_agent import get_logical_verdict
-from utils.forensic_logger import log_forensic_step
+from agents.search_agent import get_search_context 
 
 class MasterOrchestrator:
     def __init__(self):
-        # Configure Gemini 3 Flash as the Master Reasoning Engine
         try:
             api_key = st.secrets["GEMINI_API_KEY"]
             genai.configure(api_key=api_key)
+            # Standardizing on Gemini 2.5 Flash for 2026 stable performance
             self.master_model = genai.GenerativeModel('gemini-2.5-flash')
         except Exception as e:
             st.error(f"Master AI Configuration Error: {e}")
 
-    def run_full_forensics(self, image, text):
+    def run_full_forensics(self, image, text, image_url=None):
         """
-        Coordinates specialized agents and applies Weighted Decision Fusion.
+        Coordinates specialized agents and applies Balanced Weighted Fusion.
+        Ensures resilience against system failures and extreme claim mismatches.
         """
-        # 1. Specialist: CLIP (Visual Alignment) - 30% Weight
+        # 1. Specialist Agent Execution
         clip_score = get_clip_score(image, text)
-        log_forensic_step("CLIP_AGENT", text, clip_score, "Visual alignment check complete.")
-
-        # 2. Specialist: Llama 3.2-Vision (OCR Context) - 30% Weight
         ocr_score, ocr_report = get_ocr_analysis(image, text)
-        log_forensic_step("OCR_AGENT", text, ocr_score, ocr_report)
-
-        # 3. Specialist: DeepSeek (Logical Cross-Examination) - 40% Weight
-        logic_score, logic_report = get_logical_verdict(text, clip_score, ocr_report)
-        log_forensic_step("LOGIC_AGENT", text, logic_score, "Chain-of-thought logic complete.")
-
-        # 4. Integrated Scoring (Fusion)
-        # Weighting strategy: 30% Vision, 30% Context, 40% Thinking/Logic
-        final_score = (clip_score * 0.3) + (ocr_score * 0.3) + (logic_score * 0.4)
         
-        # 5. Master Synthesis: Gemini generates the final expert verdict
+        # Ground Truth check: Avoids neutral 50-score fallback if hosting fails
+        if not image_url:
+            search_score, search_report = 25.0, "Reverse image search unavailable: No Public URL provided."
+        else:
+            search_score, search_report = get_search_context(image_url, text)
+
+        # Logic Agent Execution (weighted at 10% to prevent overconfident AI speculation)
+        logic_score, logic_report = get_logical_verdict(text, clip_score, search_report, ocr_report)
+
+        # 2. Weighted Fusion Calculation
+        # Prioritizes Ground Truth (40%) and Visual Alignment (30%)
+        final_score = (search_score * 0.4) + (clip_score * 0.3) + (ocr_score * 0.2) + (logic_score * 0.1)
+        
+        # 3. Master Synthesis: Expert verdict generation for the Clean UI
         master_prompt = f"""
-        Analyze these forensic findings for the claim: "{text}"
-        - CLIP Visual Score: {clip_score}/100
-        - OCR Context Match: {ocr_score}/100
-        - Logical Reasoning Summary: {logic_report}
-        
-        Provide a final, authoritative expert conclusion for the forensic report.
+        Analyze this claim: "{text}" 
+        Forensic findings show: Vision Match ({clip_score}/100), Search context ({search_report}), OCR data ({ocr_report}), and Logic critique ({logic_report}).
+
+        Even if the claim is highly contradictory to the visual evidence (e.g., calling ice cream an artifact), 
+        maintain a professional tone and provide a clear logical breakdown.
+
+        Response Format EXACTLY:
+        SUMMARY: [Provide a concise 2-sentence verdict summary]
+        MASTER EXPLAINER: [Provide a detailed bulleted logical breakdown of the evidence]
         """
+        
         try:
             response = self.master_model.generate_content(master_prompt)
             reason = response.text
         except:
-            # Fallback to the logic agent's findings if the Master AI hits a quota limit
-            reason = logic_report 
+            # High-resilience fallback if synthesis fails
+            reason = f"SUMMARY: Audit completed with an authenticity index of {final_score:.1f}%. \nMASTER EXPLAINER: {logic_report}"
 
         return {
             "final_score": final_score,
             "reports": {
-                "Vision": clip_score,
-                "Context": ocr_score,
+                "Vision": clip_score, 
+                "Context": ocr_score, 
+                "Ground Truth": search_score, 
                 "Logic": logic_score
             },
             "reason": reason
         }
 
-# Singleton instance to be called by app.py
 orchestrator = MasterOrchestrator()
